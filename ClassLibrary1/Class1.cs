@@ -17,10 +17,16 @@ namespace ClassLibrary1
 		public int OffsetY { get; set; }
 	}
 
+	public class Location{
+		public string Href {get; set; }
+	}
+
 	[JSTarget(GlobalVariable = "window")]
 	public interface IWindow : IAsyncDisposable
 	{
+		ValueTask<Location> Location { get; set; }
 		Func<MouseEvent, Task> Onclick { set; }
+		Action<MouseEvent> Ondblclick { set; }
 	}
 
 	public class Class1
@@ -36,12 +42,20 @@ namespace ClassLibrary1
 			var window = await BlazorJSProxy<IWindow>.CreateAsync(jsRuntime);
 			window.Onclick = async evt =>
 			{
-				var a = evt.OffsetX;
-				var b = evt.OffsetY;
+				Console.WriteLine("Clicked:" + evt.OffsetX + "," + evt.OffsetY);
+				await Task.CompletedTask;
 			};
+			window.Ondblclick = evt =>
+			{
+				Console.WriteLine("Double clicked:" + evt.OffsetX + "," + evt.OffsetY);
+			};
+			var location = await window.Location;
+			Console.WriteLine(location.Href);
+			await window.DisposeAsync();
 
 			var peer = await BlazorJSProxy<IRTCPeerConnection>.CreateAsync(jsRuntime);
-			var a = await peer.ConnectionState;
+			var connectionState = await peer.ConnectionState;
+			Console.WriteLine(connectionState);
 			await peer.DisposeAsync();
 		}
 	}
