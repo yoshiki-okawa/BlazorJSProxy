@@ -2,11 +2,11 @@
 
   <PropertyGroup>
     <TargetFramework>net5.0</TargetFramework>
+    <BaseIntermediateOutputPath>..\obj</BaseIntermediateOutputPath>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.JSInterop" Version="5.0.9" />
-    <PackageReference Include="NetCoreStack.DispatchProxyAsync" Version="2.2.0" />
   </ItemGroup>
 
 </Project>
