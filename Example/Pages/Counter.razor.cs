@@ -1,13 +1,10 @@
 ﻿using ClassLibrary1;
 using Microsoft.AspNetCore.Components;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
 
 namespace Example.Pages
 {
-	public partial class Counter
+    public partial class Counter : ComponentBase
 	{
 		[Inject]
 		private Class1 Class1 { get; set; }

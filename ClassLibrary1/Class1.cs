@@ -1,13 +1,10 @@
 ﻿using BlazorJSProxy;
 using Microsoft.JSInterop;
-using System;
-using System.Reflection;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace ClassLibrary1
 {
-	public class Class1
+    public class Class1
 	{
 		private IJSRuntime jsRuntime;
 		public Class1(IJSRuntime jsRuntime)
