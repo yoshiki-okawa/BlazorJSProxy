@@ -1,9 +1,29 @@
 ﻿using BlazorJSProxy;
 using Microsoft.JSInterop;
+using System;
 using System.Threading.Tasks;
 
 namespace ClassLibrary1
 {
+	[JSTarget(ConstructorFunction = "RTCPeerConnection")]
+	public interface IRTCPeerConnection : IAsyncDisposable
+	{
+		ValueTask<string> ConnectionState { get; }
+	}
+
+	public class MouseEvent
+	{
+		public int OffsetX { get; set; }
+		public int OffsetY { get; set; }
+	}
+
+	[JSTarget(GlobalVariable = "window")]
+	public interface IWindow : IAsyncDisposable
+	{
+		ValueTask<T> Eval2<T>(string code, params object[] arguments);
+		Func<MouseEvent, Task> Onclick { set; }
+	}
+
     public class Class1
 	{
 		private IJSRuntime jsRuntime;
