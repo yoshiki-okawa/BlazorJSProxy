@@ -7,17 +7,17 @@ using ClassLibrary1;
 
 namespace Example
 {
-    public class Program
-    {
-        public static async Task Main(string[] args)
-        {
-            var builder = WebAssemblyHostBuilder.CreateDefault(args);
-            builder.RootComponents.Add<App>("#app");
+	public class Program
+	{
+		public static async Task Main(string[] args)
+		{
+			var builder = WebAssemblyHostBuilder.CreateDefault(args);
+			builder.RootComponents.Add<App>("#app");
 
-            builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(builder.HostEnvironment.BaseAddress) })
-            .AddScoped<Class1>();
+			builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(builder.HostEnvironment.BaseAddress) })
+			.AddScoped<Class1>();
 
-            await builder.Build().RunAsync();
-        }
-    }
+			await builder.Build().RunAsync();
+		}
+	}
 }

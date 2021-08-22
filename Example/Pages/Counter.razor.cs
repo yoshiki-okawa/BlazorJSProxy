@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace Example.Pages
 {
-    public partial class Counter : ComponentBase
+	public partial class Counter : ComponentBase
 	{
 		[Inject]
 		private Class1 Class1 { get; set; }
