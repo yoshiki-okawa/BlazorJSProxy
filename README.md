@@ -1,6 +1,7 @@
 # BlazorJSProxy
 Dynamic proxy of Microsoft.JSInterop.IJSRuntime which makes defining and invoking JS object much easier.\
-All you need is to define interface for JavaScript class with matching properties and methods.
+All you need is to define interface for JavaScript class with matching properties and methods.\
+[![NuGet](https://img.shields.io/nuget/v/BlazorJSProxy.svg)](https://www.nuget.org/packages/BlazorJSProxy/)
 
 **Example**
 ```c#
