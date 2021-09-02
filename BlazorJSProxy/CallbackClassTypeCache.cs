@@ -14,7 +14,7 @@ namespace BlazorJSProxy
 
 			if (!callbackClassTypes.TryGetValue(callbackType, out Type callbackClassType))
 			{
-				callbackClassType = (isAsync ? typeof(AsyncBlazorJSProxyCallback<>) : typeof(SyncBlazorJSProxyCallback<>)).MakeGenericType(callbackType);
+				callbackClassType = (isAsync ? typeof(FuncBlazorJSProxyCallback<>) : typeof(ActionBlazorJSProxyCallback<>)).MakeGenericType(callbackType);
 				callbackClassTypes.Add(callbackType, callbackClassType);
 			}
 

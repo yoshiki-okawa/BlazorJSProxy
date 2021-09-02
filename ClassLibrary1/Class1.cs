@@ -20,22 +20,27 @@ namespace ClassLibrary1
 		ValueTask<string> Name { get; set; }
 	}
 
-	public class MouseEvent
+	[JSTarget(ConstructorFunction = "MouseEvent")]
+	public interface IMouseEvent : IAsyncDisposable
 	{
-		public int OffsetX { get; set; }
-		public int OffsetY { get; set; }
+		ValueTask<int> OffsetX { get; set; }
+		ValueTask<int> OffsetY { get; set; }
 	}
 
-	public class Location{
-		public string Href {get; set; }
+	[JSTarget(GlobalVariable = "window.location")]
+	public interface ILocation : IAsyncDisposable
+	{
+		ValueTask<string> Href { get; set; }
 	}
 
 	[JSTarget(GlobalVariable = "window")]
 	public interface IWindow : IAsyncDisposable
 	{
-		ValueTask<Location> Location { get; set; }
-		Func<MouseEvent, Task> Onclick { set; }
-		Action<MouseEvent> Ondblclick { set; }
+		ValueTask<ILocation> Location { get; set; }
+		[JSName("onclick")]
+		Func<IMouseEvent, Task> OnClick { get; set; }
+		[JSName("ondblclick")]
+		Action<IMouseEvent> OnDoubleClick { set; }
 	}
 
 	public class Class1
@@ -49,14 +54,14 @@ namespace ClassLibrary1
 		public async Task Test()
 		{
 			var window = await BlazorJSProxy<IWindow>.CreateAsync(jsRuntime, null);
-			window.Onclick = async evt =>
+			window.OnClick = async evt =>
 			{
-				Console.WriteLine("Clicked:" + evt.OffsetX + "," + evt.OffsetY);
+				Console.WriteLine("Clicked:" + await evt.OffsetX + "," + await evt.OffsetY);
 				await Task.CompletedTask;
 			};
-			window.Ondblclick = evt =>
+			window.OnDoubleClick = async evt =>
 			{
-				Console.WriteLine("Double clicked:" + evt.OffsetX + "," + evt.OffsetY);
+				Console.WriteLine("Double clicked:" + await evt.OffsetX + "," + await evt.OffsetY);
 			};
 			var location = await window.Location;
 			Console.WriteLine(location.Href);
@@ -86,19 +91,18 @@ window.Child = class Child {
 			await TestProxyReturnType(x => x.GetChild(), x => x.GetChildren());
 			await TestProxyReturnType(x => x.Child, x => x.Children);
 		}
-
 		public async Task TestProxyReturnType(Func<IParent, ValueTask<IChild>> getChild, Func<IParent, ValueTask<IArray<IChild>>> getChildren)
 		{
-			var parent = await BlazorJSProxy<IParent>.CreateAsync(jsRuntime, null);
+			await using var parent = await BlazorJSProxy<IParent>.CreateAsync(jsRuntime, null);
 			var name = await parent.Name;
 			Console.WriteLine(name);
-			var child1 = await getChild(parent);
+			await using var child1 = await getChild(parent);
 			name = await child1.Name;
 			Console.WriteLine(name);
 			child1.Name = new ValueTask<string>("Child3");
 			name = await child1.Name;
 			Console.WriteLine(name);
-			var children = await getChildren(parent);
+			await using var children = await getChildren(parent);
 			Console.WriteLine(await children.Length);
 			name = await (await children.GetValue(0)).Name;
 			Console.WriteLine(name);
@@ -110,7 +114,6 @@ window.Child = class Child {
 			await children.SetValue(0, await children.GetValue(1));
 			name = await (await children.GetValue(0)).Name;
 			Console.WriteLine(name);
-			await parent.DisposeAsync();
 		}
 	}
 }

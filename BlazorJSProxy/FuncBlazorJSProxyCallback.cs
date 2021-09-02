@@ -4,11 +4,11 @@ using Microsoft.JSInterop;
 
 namespace BlazorJSProxy
 {
-	public class SyncBlazorJSProxyCallback<T>
+	public class FuncBlazorJSProxyCallback<T>
 	{
-		private readonly Action<T> callback;
+		private readonly Func<T, Task> callback;
 
-		public SyncBlazorJSProxyCallback(Action<T> callback)
+		public FuncBlazorJSProxyCallback(Func<T, Task> callback)
 		{
 			this.callback = callback;
 		}
@@ -16,8 +16,7 @@ namespace BlazorJSProxy
 		[JSInvokable]
 		public async Task InvokeAsync(T evt)
 		{
-			callback.Invoke(evt);
-			await Task.CompletedTask;
+			await callback.Invoke(evt);
 		}
 	}
 }

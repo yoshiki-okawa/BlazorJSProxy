@@ -3,7 +3,7 @@
   <PropertyGroup>
     <TargetFramework>net5.0</TargetFramework>
     <PackageId>BlazorJSProxy</PackageId>
-    <Version>1.0.1</Version>
+    <Version>1.0.2</Version>
     <Authors>Yoshiki Okawa</Authors>
     <Company>Yoshiki Okawa</Company>
     <PackageDescription>Dynamic proxy of Microsoft.JSInterop.IJSRuntime which makes defining and invoking JS object much easier</PackageDescription>

@@ -1,5 +1,6 @@
 ﻿using Microsoft.JSInterop;
 using System;
+using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -13,14 +14,14 @@ namespace BlazorJSProxy
 		private static readonly string constructorFunction = interfaceType.GetCustomAttribute<JSTargetAttribute>()?.ConstructorFunction ?? Regex.Replace(interfaceType.Name, "^I", String.Empty);
 		private static readonly string globalVariable = interfaceType.GetCustomAttribute<JSTargetAttribute>()?.GlobalVariable;
 		private IJSRuntime jsRuntime;
-		private IJSObjectReference target;
+		private JSObjectReferenceWrapper target;
 
 		public static async ValueTask<TInterface> CreateAsync(IJSRuntime jsRuntime, params object[] parameters)
 		{
 			return await CreateAsyncInternal(jsRuntime, null, parameters);
 		}
 
-		internal static async ValueTask<TInterface> CreateAsyncInternal(IJSRuntime jsRuntime, ValueTask<IJSObjectReference>? getTarget, params object[] parameters)
+		private static async ValueTask<TInterface> CreateAsyncInternal(IJSRuntime jsRuntime, ValueTask<JSObjectReferenceWrapper>? getTarget, params object[] parameters)
 		{
 			await BlazorJSProxyInitializer.InitializeAsync(jsRuntime);
 			TInterface proxy = Create<TInterface, BlazorJSProxy<TInterface>>();
@@ -29,16 +30,15 @@ namespace BlazorJSProxy
 			if (getTarget.HasValue)
 				blazorJSProxy.target = await getTarget.Value;
 			else if (!String.IsNullOrWhiteSpace(globalVariable))
-				blazorJSProxy.target = await jsRuntime.InvokeAsync<IJSObjectReference>("BlazorJSProxy.eval", $"return {globalVariable};");
+				blazorJSProxy.target = await jsRuntime.InvokeAsync<JSObjectReferenceWrapper>("BlazorJSProxy.eval", $"return DotNet.createJSObjectReference({globalVariable});");
 			else
-				blazorJSProxy.target = await jsRuntime.InvokeAsync<IJSObjectReference>("BlazorJSProxy.eval", $"return new (Function.prototype.bind.apply({constructorFunction}, arguments));", ConvertToJSObjectReference(parameters));
+				blazorJSProxy.target = await jsRuntime.InvokeAsync<JSObjectReferenceWrapper>("BlazorJSProxy.eval", $"return DotNet.createJSObjectReference(new (Function.prototype.bind.apply({constructorFunction}, arguments)));", PrepareArguments(jsRuntime, parameters));
 			return proxy;
 		}
 
 		protected override object Invoke(MethodInfo targetMethod, object[] args)
 		{
 			return InvokeDisposeAsync(targetMethod, args) ??
-				InvokeSetCallback(targetMethod, args) ??
 				InvokeGetSet(targetMethod, args) ??
 				InvokeMethod(targetMethod, args);
 		}
@@ -48,23 +48,7 @@ namespace BlazorJSProxy
 			if (targetMethod.DeclaringType != typeof(IAsyncDisposable))
 				return null;
 
-			return target.DisposeAsync();
-		}
-
-		private object InvokeSetCallback(MethodInfo targetMethod, object[] args)
-		{
-			if (!targetMethod.Name.StartsWith("set_") || args.Length == 0 || !(args[0] is Delegate))
-				return null;
-
-			var propertyName = targetMethod.Name[4..];
-			propertyName = Char.ToLower(propertyName[0]) + propertyName[1..];
-			var arguments = args[0].GetType().GetGenericArguments();
-			var callbackType = arguments[0];
-			var isAsync = arguments.Length > 1;
-			Type callbackClassType = CallbackClassTypeCache.GetCallbackClassType(isAsync, callbackType);
-			var eventHandler = Activator.CreateInstance(callbackClassType, args[0]);
-			var objectRef = DotNetObjectReference.Create(eventHandler);
-			return jsRuntime.InvokeVoidAsync("BlazorJSProxy.setEventHandler", target, propertyName, objectRef);
+			return jsRuntime.InvokeVoidAsync("DotNet.disposeJSObjectReference", target);
 		}
 
 		private object InvokeGetSet(MethodInfo targetMethod, object[] args)
@@ -72,29 +56,41 @@ namespace BlazorJSProxy
 			if (!targetMethod.Name.StartsWith("get_") && !targetMethod.Name.StartsWith("set_"))
 				return null;
 
+			var prop = targetMethod.DeclaringType.GetProperties() 
+        .FirstOrDefault(prop => prop.GetGetMethod() == targetMethod || prop.GetSetMethod() == targetMethod);
+			var jsName = prop?.GetCustomAttribute<JSNameAttribute>()?.Name;
 			var propertyName = targetMethod.Name[4..];
-			propertyName = Char.ToLower(propertyName[0]) + propertyName[1..];
+			propertyName = jsName ?? Char.ToLower(propertyName[0]) + propertyName[1..];
 			if (targetMethod.Name.StartsWith("get_"))
 			{
-				var type = targetMethod.ReturnType.GenericTypeArguments[0];
-				if (type.GetCustomAttribute<JSTargetAttribute>() != null || type.IsArray && type.GetElementType().GetCustomAttribute<JSTargetAttribute>() != null)
-				{
-					MethodInfo invokeAsyncMethodInfo2 = InvokeAsyncMethodInfoCache.GetJsRuntimeInvokeAsyncMethodInfo(typeof(IJSObjectReference));
-					var getTarget = (ValueTask<IJSObjectReference>)invokeAsyncMethodInfo2.Invoke(jsRuntime, new object[] { "BlazorJSProxy.getProperty", new object[] { target, propertyName } });
-					return CreateAsyncMethodInfoCache.GetCreateAsyncMethodInfo(type).Invoke(null, new object[] { jsRuntime, getTarget, null });
-				}
-				MethodInfo invokeAsyncMethodInfo = InvokeAsyncMethodInfoCache.GetJsRuntimeInvokeAsyncMethodInfo(type);
-				return invokeAsyncMethodInfo.Invoke(jsRuntime, new object[] { "BlazorJSProxy.getProperty", new object[] { target, propertyName } });
+				Type returnType = targetMethod.ReturnType.GenericTypeArguments[0];
+				Type invokeAsyncGenericType = returnType;
+				bool isJSTarget = returnType.GetCustomAttribute<JSTargetAttribute>() != null || returnType.IsArray && returnType.GetElementType().GetCustomAttribute<JSTargetAttribute>() != null;
+				if (isJSTarget)
+					invokeAsyncGenericType = typeof(JSObjectReferenceWrapper);
+
+				MethodInfo invokeAsyncMethodInfo = InvokeAsyncMethodInfoCache.GetJsRuntimeInvokeAsyncMethodInfo(invokeAsyncGenericType);
+				string code = isJSTarget ? $"return DotNet.createJSObjectReference(BlazorJSProxy.getProperty(...arguments));" : $"return BlazorJSProxy.getProperty(...arguments);";
+				object result = invokeAsyncMethodInfo.Invoke(jsRuntime, new object[] { "BlazorJSProxy.eval", new object[] { code, new object[] { target, propertyName } } });
+				if (isJSTarget)
+					return CreateAsyncMethodInfoCache.GetCreateAsyncMethodInfo(returnType).Invoke(null, new object[] { jsRuntime, result, null });
+
+				return result;
 			}
 			else
 			{
-				return jsRuntime.InvokeVoidAsync("BlazorJSProxy.setProperty", target, propertyName, ConvertToJSObjectReference((object)((dynamic)args[0]).Result));
+				var arg = args[0];
+				if (!(arg is Delegate))
+					arg = (object)((dynamic)args[0]).Result;
+				jsRuntime.InvokeVoidAsync("BlazorJSProxy.setProperty", target, propertyName, PrepareArgument(jsRuntime, arg));
+				return null;
 			}
 		}
 
 		private object InvokeMethod(MethodInfo targetMethod, object[] args)
 		{
-			string methodName = Char.ToLower(targetMethod.Name[0]) + targetMethod.Name[1..];
+			var jsName = targetMethod.GetCustomAttribute<JSNameAttribute>()?.Name;
+			string methodName = jsName ?? Char.ToLower(targetMethod.Name[0]) + targetMethod.Name[1..];
 
 			if (targetMethod.ReturnType.IsGenericType)
 			{
@@ -102,18 +98,20 @@ namespace BlazorJSProxy
 				Type invokeAsyncGenericType = returnType;
 				bool isJSTarget = returnType.GetCustomAttribute<JSTargetAttribute>() != null || returnType.IsArray && returnType.GetElementType().GetCustomAttribute<JSTargetAttribute>() != null;
 				if (isJSTarget)
-					invokeAsyncGenericType = typeof(IJSObjectReference);
+					invokeAsyncGenericType = typeof(JSObjectReferenceWrapper);
 
 				object result;
 				if (isArray && methodName == "getValue")
 				{
 					MethodInfo invokeAsyncMethodInfo = InvokeAsyncMethodInfoCache.GetJsRuntimeInvokeAsyncMethodInfo(invokeAsyncGenericType);
-					result = invokeAsyncMethodInfo.Invoke(jsRuntime, new object[] { "BlazorJSProxy.getProperty", new object[] { target, args[0] } });
+					string code = isJSTarget ? $"return DotNet.createJSObjectReference(BlazorJSProxy.getProperty(...arguments));" : $"return BlazorJSProxy.getProperty(...arguments);";
+					result = invokeAsyncMethodInfo.Invoke(jsRuntime, new object[] { "BlazorJSProxy.eval", new object[] { code, new object[] { target, args[0] } } });
 				}
 				else
 				{
-					MethodInfo invokeAsyncMethodInfo = InvokeAsyncMethodInfoCache.GetJsObjectInvokeAsyncMethodInfo(invokeAsyncGenericType);
-					result = invokeAsyncMethodInfo.Invoke(target, new object[] { methodName, ConvertToJSObjectReference(args) });
+					MethodInfo invokeAsyncMethodInfo = InvokeAsyncMethodInfoCache.GetJsRuntimeInvokeAsyncMethodInfo(invokeAsyncGenericType);
+					string code = isJSTarget ? $"return DotNet.createJSObjectReference(arguments[0]['{methodName}'](...arguments[1]));" : $"return arguments[0]['{methodName}'](...arguments[1]);";
+					result = invokeAsyncMethodInfo.Invoke(jsRuntime, new object[] { "BlazorJSProxy.eval", new object[] { code, new object[] { target, PrepareArguments(jsRuntime, args) } } });
 				}
 
 				if (isJSTarget)
@@ -122,31 +120,37 @@ namespace BlazorJSProxy
 				return result;
 			}
 			if (isArray && methodName == "setValue")
-				return jsRuntime.InvokeVoidAsync("BlazorJSProxy.setProperty", target, args[0], ConvertToJSObjectReference(args[1]));
-			return target.InvokeVoidAsync(methodName, ConvertToJSObjectReference(args));
+				return jsRuntime.InvokeVoidAsync("BlazorJSProxy.setProperty", target, args[0], PrepareArgument(jsRuntime, args[1]));
+			return jsRuntime.InvokeVoidAsync("BlazorJSProxy.eval", $"return arguments[0]['{methodName}'](...arguments[1]);", new object[] { target, PrepareArguments(jsRuntime, args) });
 		}
 
-		private static object[] ConvertToJSObjectReference(object[] arguments)
+		private static object[] PrepareArguments(IJSRuntime jsRuntime, object[] arguments)
 		{
 			if (arguments == null)
 				return arguments;
 
 			var result = new object[arguments.Length];
 			for (int i = 0; i < arguments.Length; i++)
-				result[i] = ConvertToJSObjectReference(arguments[i]);
+				result[i] = PrepareArgument(jsRuntime, arguments[i]);
 			return result;
 		}
 
-		private static object ConvertToJSObjectReference(object argument)
+		private static object PrepareArgument(IJSRuntime jsRuntime, object argument)
 		{
 			if (argument == null)
 				return argument;
 
 			Type type = argument.GetType().BaseType;
-			if (type == null || !type.IsGenericType || type.GetGenericTypeDefinition() != typeof(BlazorJSProxy<>))
+			if (type == null)
 				return argument;
 
-			return ((dynamic)argument).target;
+			if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(BlazorJSProxy<>))
+				return ((dynamic)argument).target;
+
+			if (argument is Delegate del)
+				return CallBackInteropWrapper.Create(jsRuntime, del);
+
+			return argument;
 		}
 	}
 }

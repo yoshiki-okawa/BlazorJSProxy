@@ -7,10 +7,8 @@ namespace BlazorJSProxy
 {
 	internal static class InvokeAsyncMethodInfoCache
 	{
-		private static MethodInfo jsRuntimeInvokeAsyncMethodInfo = typeof(IJSRuntime).GetMethod(nameof(IJSObjectReference.InvokeAsync), new Type[] { typeof(string), typeof(object[]) });
+		private static MethodInfo jsRuntimeInvokeAsyncMethodInfo = typeof(IJSRuntime).GetMethod(nameof(IJSRuntime.InvokeAsync), new Type[] { typeof(string), typeof(object[]) });
 		private static Dictionary<Type, MethodInfo> jsRuntimeInvokeAsyncMethodInfos = new Dictionary<Type, MethodInfo>();
-		private static MethodInfo jsObjectInvokeAsyncMethodInfo = typeof(IJSObjectReference).GetMethod(nameof(IJSObjectReference.InvokeAsync), new Type[] { typeof(string), typeof(object[]) });
-		private static Dictionary<Type, MethodInfo> jsObjectInvokeAsyncMethodInfos = new Dictionary<Type, MethodInfo>();
 
 		internal static MethodInfo GetJsRuntimeInvokeAsyncMethodInfo(Type genericTypeArgument)
 		{
@@ -18,17 +16,6 @@ namespace BlazorJSProxy
 			{
 				methodinfo = jsRuntimeInvokeAsyncMethodInfo.MakeGenericMethod(genericTypeArgument);
 				jsRuntimeInvokeAsyncMethodInfos.Add(genericTypeArgument, methodinfo);
-			}
-
-			return methodinfo;
-		}
-
-		internal static MethodInfo GetJsObjectInvokeAsyncMethodInfo(Type genericTypeArgument)
-		{
-			if (!jsObjectInvokeAsyncMethodInfos.TryGetValue(genericTypeArgument, out MethodInfo methodinfo))
-			{
-				methodinfo = jsObjectInvokeAsyncMethodInfo.MakeGenericMethod(genericTypeArgument);
-				jsObjectInvokeAsyncMethodInfos.Add(genericTypeArgument, methodinfo);
 			}
 
 			return methodinfo;

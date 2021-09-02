@@ -14,7 +14,8 @@ namespace BlazorJSProxy
 		{
 			if (!createAsyncMethodInfos.TryGetValue(genericTypeArgument, out MethodInfo methodinfo))
 			{
-				methodinfo = typeof(BlazorJSProxy<>).MakeGenericType(genericTypeArgument).GetMethod("CreateAsyncInternal", BindingFlags.Static | BindingFlags.NonPublic, null, new Type[] { typeof(IJSRuntime), typeof(ValueTask<IJSObjectReference>), typeof(object[]) }, null);
+				var name = genericTypeArgument.Name;
+				methodinfo = typeof(BlazorJSProxy<>).MakeGenericType(genericTypeArgument).GetMethod("CreateAsyncInternal", BindingFlags.Static | BindingFlags.NonPublic, null, new Type[] { typeof(IJSRuntime), typeof(ValueTask<JSObjectReferenceWrapper>), typeof(object[]) }, null);
 				createAsyncMethodInfos.Add(genericTypeArgument, methodinfo);
 			}
 
