@@ -126,7 +126,7 @@ namespace BlazorJSProxy
 
 		private static object[] PrepareArguments(IJSRuntime jsRuntime, object[] arguments)
 		{
-			if (arguments == null)
+			if (arguments == null || arguments.Length == 0)
 				return arguments;
 
 			var result = new object[arguments.Length];

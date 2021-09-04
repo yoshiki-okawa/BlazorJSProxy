@@ -26,23 +26,6 @@ namespace BlazorJSProxy
 			};
 			return wrapper;
 		}
-		/*public static CallBackInteropWrapper Create<T>(Func<T, Task> callback)
-		{
-			var wrapper = new CallBackInteropWrapper
-			{
-				CallbackRef = DotNetObjectReference.Create(new JSInteropActionCallback<T>(callback))
-			};
-			return wrapper;
-		}
-
-		public static CallBackInteropWrapper Create(Func<Task> callback)
-		{
-			var wrapper = new CallBackInteropWrapper
-			{
-				CallbackRef = DotNetObjectReference.Create(new JSInteropActionCallback(callback))
-			};
-			return wrapper;
-		}*/
 
 		private class JSInteropActionCallback
 		{
@@ -84,22 +67,6 @@ namespace BlazorJSProxy
 					}
 				}
 				toDo.DynamicInvoke(newArgs.ToArray());
-				//await toDo.Invoke();
-			}
-		}
-
-		private class JSInteropActionCallback<T>
-		{
-			private readonly Func<T, Task> toDo;
-
-			internal JSInteropActionCallback(Func<T, Task> toDo)
-			{
-				this.toDo = toDo;
-			}
-			[JSInvokable]
-			public async Task Invoke(params System.Text.Json.JsonElement[] args)
-			{
-				//await toDo.Invoke(arg1[0]);
 			}
 		}
 	}
