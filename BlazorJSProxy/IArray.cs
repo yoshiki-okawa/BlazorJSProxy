@@ -9,8 +9,6 @@ namespace BlazorJSProxy
 	{
 		ValueTask<int> Length { get; }
 
-		ValueTask<T> GetValue(int index);
-
-		ValueTask SetValue(int index, T value);
+		ValueTask<T> this[int index] { get; set; }
 	}
 }

@@ -104,15 +104,15 @@ window.Child = class Child {
 			Console.WriteLine(name);
 			await using var children = await getChildren(parent);
 			Console.WriteLine(await children.Length);
-			name = await (await children.GetValue(0)).Name;
+			name = await (await children[0]).Name;
 			Console.WriteLine(name);
-			name = await (await children.GetValue(1)).Name;
+			name = await (await children[1]).Name;
 			Console.WriteLine(name);
-			(await children.GetValue(0)).Name = new ValueTask<string>("Child4");
-			name = await (await children.GetValue(0)).Name;
+			(await children[0]).Name = new ValueTask<string>("Child4");
+			name = await (await children[0]).Name;
 			Console.WriteLine(name);
-			await children.SetValue(0, await children.GetValue(1));
-			name = await (await children.GetValue(0)).Name;
+			children[0] = new ValueTask<IChild>(await children[1]);
+			name = await (await children[0]).Name;
 			Console.WriteLine(name);
 		}
 	}

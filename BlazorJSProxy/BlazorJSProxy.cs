@@ -56,11 +56,12 @@ namespace BlazorJSProxy
 			if (!targetMethod.Name.StartsWith("get_") && !targetMethod.Name.StartsWith("set_"))
 				return null;
 
-			var prop = targetMethod.DeclaringType.GetProperties() 
-        .FirstOrDefault(prop => prop.GetGetMethod() == targetMethod || prop.GetSetMethod() == targetMethod);
+			var prop = targetMethod.DeclaringType.GetProperties()
+		  .FirstOrDefault(prop => prop.GetGetMethod() == targetMethod || prop.GetSetMethod() == targetMethod);
 			var jsName = prop?.GetCustomAttribute<JSNameAttribute>()?.Name;
 			var propertyName = targetMethod.Name[4..];
 			propertyName = jsName ?? Char.ToLower(propertyName[0]) + propertyName[1..];
+			bool isArrayItem = isArray && propertyName == "item";
 			if (targetMethod.Name.StartsWith("get_"))
 			{
 				Type returnType = targetMethod.ReturnType.GenericTypeArguments[0];
@@ -71,7 +72,7 @@ namespace BlazorJSProxy
 
 				MethodInfo invokeAsyncMethodInfo = InvokeAsyncMethodInfoCache.GetJsRuntimeInvokeAsyncMethodInfo(invokeAsyncGenericType);
 				string code = isJSTarget ? $"return DotNet.createJSObjectReference(BlazorJSProxy.getProperty(...arguments));" : $"return BlazorJSProxy.getProperty(...arguments);";
-				object result = invokeAsyncMethodInfo.Invoke(jsRuntime, new object[] { "BlazorJSProxy.eval", new object[] { code, new object[] { target, propertyName } } });
+				object result = invokeAsyncMethodInfo.Invoke(jsRuntime, new object[] { "BlazorJSProxy.eval", new object[] { code, new object[] { target, isArrayItem ? args[0] : propertyName } } });
 				if (isJSTarget)
 					return CreateAsyncMethodInfoCache.GetCreateAsyncMethodInfo(returnType).Invoke(null, new object[] { jsRuntime, result, null });
 
@@ -79,10 +80,10 @@ namespace BlazorJSProxy
 			}
 			else
 			{
-				var arg = args[0];
+				var arg = isArrayItem ? args[1] : args[0];
 				if (!(arg is Delegate))
-					arg = (object)((dynamic)args[0]).Result;
-				jsRuntime.InvokeVoidAsync("BlazorJSProxy.setProperty", target, propertyName, PrepareArgument(jsRuntime, arg));
+					arg = (object)((dynamic)arg).Result;
+				jsRuntime.InvokeVoidAsync("BlazorJSProxy.setProperty", target, isArrayItem ? args[0] : propertyName, PrepareArgument(jsRuntime, arg));
 				return null;
 			}
 		}
@@ -100,27 +101,15 @@ namespace BlazorJSProxy
 				if (isJSTarget)
 					invokeAsyncGenericType = typeof(JSObjectReferenceWrapper);
 
-				object result;
-				if (isArray && methodName == "getValue")
-				{
-					MethodInfo invokeAsyncMethodInfo = InvokeAsyncMethodInfoCache.GetJsRuntimeInvokeAsyncMethodInfo(invokeAsyncGenericType);
-					string code = isJSTarget ? $"return DotNet.createJSObjectReference(BlazorJSProxy.getProperty(...arguments));" : $"return BlazorJSProxy.getProperty(...arguments);";
-					result = invokeAsyncMethodInfo.Invoke(jsRuntime, new object[] { "BlazorJSProxy.eval", new object[] { code, new object[] { target, args[0] } } });
-				}
-				else
-				{
-					MethodInfo invokeAsyncMethodInfo = InvokeAsyncMethodInfoCache.GetJsRuntimeInvokeAsyncMethodInfo(invokeAsyncGenericType);
-					string code = isJSTarget ? $"return DotNet.createJSObjectReference(arguments[0]['{methodName}'](...arguments[1]));" : $"return arguments[0]['{methodName}'](...arguments[1]);";
-					result = invokeAsyncMethodInfo.Invoke(jsRuntime, new object[] { "BlazorJSProxy.eval", new object[] { code, new object[] { target, PrepareArguments(jsRuntime, args) } } });
-				}
+				MethodInfo invokeAsyncMethodInfo = InvokeAsyncMethodInfoCache.GetJsRuntimeInvokeAsyncMethodInfo(invokeAsyncGenericType);
+				string code = isJSTarget ? $"return DotNet.createJSObjectReference(arguments[0]['{methodName}'](...arguments[1]));" : $"return arguments[0]['{methodName}'](...arguments[1]);";
+				object result = invokeAsyncMethodInfo.Invoke(jsRuntime, new object[] { "BlazorJSProxy.eval", new object[] { code, new object[] { target, PrepareArguments(jsRuntime, args) } } });
 
 				if (isJSTarget)
 					return CreateAsyncMethodInfoCache.GetCreateAsyncMethodInfo(returnType).Invoke(null, new object[] { jsRuntime, result, null });
 
 				return result;
 			}
-			if (isArray && methodName == "setValue")
-				return jsRuntime.InvokeVoidAsync("BlazorJSProxy.setProperty", target, args[0], PrepareArgument(jsRuntime, args[1]));
 			return jsRuntime.InvokeVoidAsync("BlazorJSProxy.eval", $"return arguments[0]['{methodName}'](...arguments[1]);", new object[] { target, PrepareArguments(jsRuntime, args) });
 		}
 
