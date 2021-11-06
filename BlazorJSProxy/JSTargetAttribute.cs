@@ -17,7 +17,6 @@ namespace BlazorJSProxy
 		/// <summary>
 		/// The global variable. e.g. window
 		/// </summary>
-		/// <value></value>
 		public string GlobalVariable { get; set; }
 	}
 }

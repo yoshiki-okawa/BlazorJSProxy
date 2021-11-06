@@ -13,6 +13,9 @@ namespace BlazorJSProxy
 			Name = name;
 		}
 
+		/// <summary>
+		/// JS property or method name.
+		/// </summary>
 		public string Name { get; set; }
 	}
 }
